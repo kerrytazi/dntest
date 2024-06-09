@@ -60,4 +60,38 @@ var stdImporter = new Importer(stdMod);
 	body.Instructions.Add(OpCodes.Ret.ToInstruction());
 }
 
+{
+	var dictDef = stdImporter.Import(typeof(Dictionary<int, string>));
+	var dictRef = new TypeRefUser(mod, dictDef.Namespace, dictDef.Name, mod.CorLibTypes.AssemblyRef);
+
+	var dictGenSig = new GenericInstSig(new ClassSig(dictRef), [ mod.CorLibTypes.Int32, mod.CorLibTypes.String ]);
+	var dictSpecRef = new TypeSpecUser(dictGenSig);
+
+	var dictCtorDef = stdImporter.Import(typeof(Dictionary<int, string>).GetConstructor([]));
+	var dictCtorRef = new MemberRefUser(mod, dictCtorDef.Name, dictCtorDef.MethodSig, dictSpecRef);
+
+	var fieldDef = new FieldDefUser("dict", new FieldSig(dictSpecRef.ToTypeSig()));
+	fieldDef.Attributes = FieldAttributes.Static | FieldAttributes.Private;
+
+	classDef.Fields.Add(fieldDef);
+
+	var ctorDef = new MethodDefUser(".ctor", MethodSig.CreateStatic(mod.CorLibTypes.Void));
+	ctorDef.Attributes = MethodAttributes.SpecialName | MethodAttributes.RTSpecialName | MethodAttributes.Static | MethodAttributes.Private | MethodAttributes.HideBySig;
+	ctorDef.ImplAttributes = MethodImplAttributes.IL | MethodImplAttributes.Managed;
+
+	classDef.Methods.Add(ctorDef);
+
+	/*
+	0    0000    newobj instance void class [System.Collections] System.Collections.Generic.Dictionary`2 < int32, string>::.ctor()
+	1    0005    stsfld	class [System.Collections] System.Collections.Generic.Dictionary`2 < int32, string> TestGenLib.TestGenLibClass::dict
+	2    000A    ret
+	*/
+
+	var body = new CilBody();
+	ctorDef.Body = body;
+	body.Instructions.Add(OpCodes.Newobj.ToInstruction(dictCtorRef));
+	body.Instructions.Add(OpCodes.Stsfld.ToInstruction(fieldDef));
+	body.Instructions.Add(OpCodes.Ret.ToInstruction());
+}
+
 mod.Write(@"NewTestGenLib.dll");
