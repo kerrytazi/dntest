@@ -2,7 +2,7 @@
 
 namespace TestGenLib
 {
-	public class TestGenLibClass
+	public class TestGenLibClass : TestBaseLibClass
 	{
 		private static Dictionary<int, string> dict = new Dictionary<int, string>();
 

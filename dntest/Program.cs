@@ -94,4 +94,14 @@ var stdImporter = new Importer(stdMod);
 	body.Instructions.Add(OpCodes.Ret.ToInstruction());
 }
 
+{
+	var libMod = ModuleDefMD.Load(typeof(TestBaseLibClass).Module);
+	var libImporter = new Importer(libMod);
+
+	var libBaseClassDef = libImporter.Import(typeof(TestBaseLibClass));
+	var libBaseClassRef = new TypeRefUser(mod, libBaseClassDef.Namespace, libBaseClassDef.Name, libMod.Assembly.ToAssemblyRef());
+
+	classDef.BaseType = libBaseClassRef;
+}
+
 mod.Write(@"NewTestGenLib.dll");

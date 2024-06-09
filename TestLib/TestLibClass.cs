@@ -14,4 +14,8 @@
 			return valA + b;
 		}
 	}
+
+	public class TestBaseLibClass
+	{
+	}
 }
