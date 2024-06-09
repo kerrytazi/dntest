@@ -1,5 +1,6 @@
 ﻿using dnlib.DotNet;
 using dnlib.DotNet.Emit;
+using TestLib;
 
 
 var mod = new ModuleDefUser("TestGenLib.dll");
@@ -13,42 +14,50 @@ classDef.Attributes = TypeAttributes.Public | TypeAttributes.AutoLayout | TypeAt
 
 mod.Types.Add(classDef);
 
-var methodDef = new MethodDefUser("Test", MethodSig.CreateInstance(mod.CorLibTypes.Void));
-methodDef.Attributes = MethodAttributes.Public | MethodAttributes.HideBySig;
-methodDef.ImplAttributes = MethodImplAttributes.IL | MethodImplAttributes.Managed;
+var stdMod = ModuleDefMD.Load(typeof(void).Module);
+var stdImporter = new Importer(stdMod);
 
-classDef.Methods.Add(methodDef);
+{
+	var methodDef = new MethodDefUser("Test", MethodSig.CreateInstance(mod.CorLibTypes.Void));
+	methodDef.Attributes = MethodAttributes.Public | MethodAttributes.HideBySig;
+	methodDef.ImplAttributes = MethodImplAttributes.IL | MethodImplAttributes.Managed;
 
-var consoleRef = new TypeRefUser(mod, "System", "Console", mod.CorLibTypes.AssemblyRef);
-var consoleWrite = new MemberRefUser(mod, "WriteLine", MethodSig.CreateStatic(mod.CorLibTypes.Void, mod.CorLibTypes.Int32), consoleRef);
+	classDef.Methods.Add(methodDef);
 
-ModuleContext libModCtx = ModuleDef.CreateModuleContext();
-ModuleDefMD libMod = ModuleDefMD.Load(@"TestLib.dll", libModCtx);
+	var consoleDef = stdImporter.Import(typeof(Console));
+	var consoleWriteLineDef = stdImporter.Import(typeof(Console).GetMethod(nameof(Console.WriteLine), [ typeof(int) ]));
 
-var libClassDef = libMod.Types.FirstOrDefault(t => t.Name == "TestLibClass")!;
-var libCtorDef = libClassDef.Methods.FirstOrDefault(m => m.Name == ".ctor")!;
-var libMethodDef = libClassDef.Methods.FirstOrDefault(m => m.Name == "AddA")!;
+	var consoleRef = new TypeRefUser(mod, consoleDef.Namespace, consoleDef.Name, mod.CorLibTypes.AssemblyRef);
+	var consoleWrite = new MemberRefUser(mod, consoleWriteLineDef.Name, consoleWriteLineDef.MethodSig, consoleRef);
 
-var libClassRef = new TypeRefUser(mod, libClassDef.Namespace, libClassDef.Name, libMod.Assembly.ToAssemblyRef());
-var libCtorRef = new MemberRefUser(mod, libCtorDef.Name, libCtorDef.MethodSig, libClassRef);
-var libMethodRef = new MemberRefUser(mod, libMethodDef.Name, libMethodDef.MethodSig, libClassRef);
+	var libMod = ModuleDefMD.Load(typeof(TestLibClass).Module);
+	var libImporter = new Importer(libMod);
 
-/*
-0    0000    ldc.i4.3
-1    0001    newobj     instance void [TestLib]TestLib.TestLibClass::.ctor(int32)
-2    0006    ldc.i4.4
-3    0007    callvirt   instance int32 [TestLib]TestLib.TestLibClass::AddA(int32)
-4    000C    call       void [System.Console]System.Console::WriteLine(int32)
-5    0011    ret
-*/
+	var libClassDef = libImporter.Import(typeof(TestLibClass));
+	var libCtorDef = libImporter.Import(typeof(TestLibClass).GetConstructor([ typeof(int) ]));
+	var libMethodDef = libImporter.Import(typeof(TestLibClass).GetMethod(nameof(TestLibClass.AddA)));
 
-var methodBody = new CilBody();
-methodDef.Body = methodBody;
-methodBody.Instructions.Add(OpCodes.Ldc_I4_3.ToInstruction());
-methodBody.Instructions.Add(OpCodes.Newobj.ToInstruction(libCtorRef));
-methodBody.Instructions.Add(OpCodes.Ldc_I4_4.ToInstruction());
-methodBody.Instructions.Add(OpCodes.Callvirt.ToInstruction(libMethodRef));
-methodBody.Instructions.Add(OpCodes.Call.ToInstruction(consoleWrite));
-methodBody.Instructions.Add(OpCodes.Ret.ToInstruction());
+	var libClassRef = new TypeRefUser(mod, libClassDef.Namespace, libClassDef.Name, libMod.Assembly.ToAssemblyRef());
+	var libCtorRef = new MemberRefUser(mod, libCtorDef.Name, libCtorDef.MethodSig, libClassRef);
+	var libMethodRef = new MemberRefUser(mod, libMethodDef.Name, libMethodDef.MethodSig, libClassRef);
+
+	/*
+	0    0000    ldc.i4.3
+	1    0001    newobj     instance void [TestLib]TestLib.TestLibClass::.ctor(int32)
+	2    0006    ldc.i4.4
+	3    0007    callvirt   instance int32 [TestLib]TestLib.TestLibClass::AddA(int32)
+	4    000C    call       void [System.Console]System.Console::WriteLine(int32)
+	5    0011    ret
+	*/
+
+	var body = new CilBody();
+	methodDef.Body = body;
+	body.Instructions.Add(OpCodes.Ldc_I4_3.ToInstruction());
+	body.Instructions.Add(OpCodes.Newobj.ToInstruction(libCtorRef));
+	body.Instructions.Add(OpCodes.Ldc_I4_4.ToInstruction());
+	body.Instructions.Add(OpCodes.Callvirt.ToInstruction(libMethodRef));
+	body.Instructions.Add(OpCodes.Call.ToInstruction(consoleWrite));
+	body.Instructions.Add(OpCodes.Ret.ToInstruction());
+}
 
 mod.Write(@"NewTestGenLib.dll");
